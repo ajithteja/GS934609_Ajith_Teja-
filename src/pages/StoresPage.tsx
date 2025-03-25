@@ -149,6 +149,8 @@ const StoresPage = () => {
       },
       {
         headerName: 'S.No',
+        rowDrag: true,
+
         valueGetter: (
           params: ValueGetterParams<PermanentStore | TempStore>
         ) => {
@@ -287,6 +289,7 @@ const StoresPage = () => {
           stopEditingWhenCellsLoseFocus={true}
           suppressRowHoverHighlight={false}
           domLayout="autoHeight"
+          rowDragManaged={true}
           headerHeight={getResponsiveSize() === 'sm' ? 36 : 42}
           rowHeight={getResponsiveSize() === 'sm' ? 32 : 38}
         />
