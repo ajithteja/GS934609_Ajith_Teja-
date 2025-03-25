@@ -36,17 +36,25 @@ const Sidebar: React.FC = () => {
   return (
     <div>
       {/* 🔹 Toggle Button (for Small Screens) */}
-      <button
+      {/* <button
         className="cursor-pointer md:hidden bg-gray-600 toggle-btn"
         onClick={() => setIsOpen(!isOpen)}>
         {isOpen ? <FaTimes size={12} /> : <FaBars size={12} />}
-      </button>
+      </button> */}
 
       <div
-        className={`bg-gray-100 p- fixed top-15 left-0 h-[calc(100vh-80px)] transition-all duration-200 shadow-lg z-40 ${
-          isOpen ? 'w-64' : 'w-16'
+        className={` bg-gray-100 p-  top-15 left-0 h-[calc(100vh-80px)] transition-all duration-200 shadow-lg z-40 ${
+          isOpen ? 'fixed  w-64 mt-5 md:mt-0' : 'w-16'
         } md:relative md:w-64 md:top-0`}>
-        <ul className="mt-14 md:mt-0 md:relative">
+        <ul className="mt- md:mt-0 md:relative">
+          <li
+            className={`md:hidden side-bar-text flex items-center pl-6 space-x-3 cursor-pointer h-16 rounded-none transition-colors duration-50
+    
+      `}
+            onClick={() => setIsOpen(!isOpen)}>
+            {isOpen ? <FaTimes size={12} /> : <FaBars size={12} />}
+          </li>
+
           <SidebarItem
             icon={<MdOutlineStore size={22} />}
             label="Store"

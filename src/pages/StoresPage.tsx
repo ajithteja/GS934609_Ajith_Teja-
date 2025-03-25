@@ -54,28 +54,39 @@ const StoresPage = () => {
     [dispatch]
   );
 
-  const valueSetter = (params: ValueSetterParams) => {
-    const field = params.column.getColId();
-    const newValue = params.newValue;
-    const data = { ...params.data };
-    data[field] = newValue;
+  const valueSetter = useCallback(
+    (params: ValueSetterParams) => {
+      const field = params.column.getColId();
+      const newValue = params.newValue;
+      const data = { ...params.data };
+      data[field] = newValue;
 
-    if (data.id) {
-      dispatch(updateStore(data));
-    } else if (data.name?.trim() !== '') {
-      const newStore = { ...data, id: uuidv4() };
-      delete newStore.tempId;
-      dispatch(addStore(newStore));
-      setTempData((prev) =>
-        prev.filter((store) => store.tempId !== data.tempId)
-      );
-    } else {
-      setTempData((prev) =>
-        prev.map((store) => (store.tempId === data.tempId ? data : store))
-      );
-    }
-    return true;
-  };
+      if ('id' in data) {
+        dispatch(updateStore(data as PermanentStore));
+      } else if (field === 'name' && data.name?.trim() !== '') {
+        const newStore: PermanentStore = {
+          id: uuidv4(),
+          name: data.name,
+          city: data.city || '',
+          state: data.state || '',
+        };
+        dispatch(addStore(newStore));
+        setTempData((prev) =>
+          prev.filter((store) => store.tempId !== (data as TempStore).tempId)
+        );
+      } else {
+        setTempData((prev) =>
+          prev.map((store) =>
+            store.tempId === (data as TempStore).tempId
+              ? (data as TempStore)
+              : store
+          )
+        );
+      }
+      return true;
+    },
+    [dispatch]
+  );
 
   const columnDefs = useMemo<ColDef<PermanentStore | TempStore>[]>(
     () => [
@@ -96,11 +107,12 @@ const StoresPage = () => {
               <RiDeleteBin6Line size={18} />
             </button>
           ) : null,
-        width: 30,
-        maxWidth: 80,
+        width: 60,
+        maxWidth: 60,
         minWidth: 60,
         cellStyle: { padding: '4px', textAlign: 'center' },
         headerClass: 'custom-header',
+        suppressSizeToFit: true,
       },
       {
         headerName: 'S.No',
@@ -121,124 +133,59 @@ const StoresPage = () => {
           });
           return index + 1;
         },
-        width: 90,
+        width: 80,
+        minWidth: 80,
+        maxWidth: 80,
         cellClass: 'border-right',
         headerClass: 'border-right custom-header',
+        suppressSizeToFit: true,
       },
       {
         headerName: 'Store Name',
         field: 'name',
         headerClass: 'custom-header',
         editable: true,
-        valueSetter: (params: {
-          data?: PermanentStore | TempStore;
-          newValue: string;
-        }) => {
-          if (!params.data) return false;
-          const newValue = params.newValue;
-          const data = { ...params.data };
-
-          if ('id' in data) {
-            const updatedStore: PermanentStore = {
-              ...data,
-              name: newValue,
-            };
-            dispatch(updateStore(updatedStore));
-          } else if ('tempId' in data) {
-            const updatedTemp: TempStore = {
-              ...data,
-              name: newValue,
-            };
-            if (updatedTemp.name.trim() !== '') {
-              const newStore: PermanentStore = {
-                id: uuidv4(),
-                name: updatedTemp.name,
-                city: updatedTemp.city,
-                state: updatedTemp.state,
-              };
-              dispatch(addStore(newStore));
-              setTempData((prev) =>
-                prev.filter((store) => store.tempId !== updatedTemp.tempId)
-              );
-            } else {
-              setTempData((prev) =>
-                prev.map((store) =>
-                  store.tempId === updatedTemp.tempId ? updatedTemp : store
-                )
-              );
-            }
-          }
-          return true;
-        },
+        valueSetter: valueSetter,
+        flex: 2,
+        minWidth: 150,
       },
       {
         headerName: 'City',
         field: 'city',
         headerClass: 'custom-header',
         editable: true,
-        valueSetter: (params: {
-          data?: PermanentStore | TempStore;
-          newValue: string;
-        }) => {
-          if (!params.data) return false;
-          const newValue = params.newValue;
-          const data = { ...params.data };
-
-          if ('id' in data) {
-            const updatedStore: PermanentStore = {
-              ...data,
-              city: newValue,
-            };
-            dispatch(updateStore(updatedStore));
-          } else if ('tempId' in data) {
-            const updatedTemp: TempStore = {
-              ...data,
-              city: newValue,
-            };
-            setTempData((prev) =>
-              prev.map((store) =>
-                store.tempId === updatedTemp.tempId ? updatedTemp : store
-              )
-            );
-          }
-          return true;
-        },
+        valueSetter: valueSetter,
+        flex: 1,
+        minWidth: 120,
       },
       {
         headerName: 'State',
         field: 'state',
         headerClass: 'custom-header',
         editable: true,
-        valueSetter: (params: {
-          data?: PermanentStore | TempStore;
-          newValue: string;
-        }) => {
-          if (!params.data) return false;
-          const newValue = params.newValue;
-          const data = { ...params.data };
-
-          if ('id' in data) {
-            const updatedStore: PermanentStore = {
-              ...data,
-              state: newValue,
-            };
-            dispatch(updateStore(updatedStore));
-          } else if ('tempId' in data) {
-            const updatedTemp: TempStore = {
-              ...data,
-              state: newValue,
-            };
-            setTempData((prev) =>
-              prev.map((store) =>
-                store.tempId === updatedTemp.tempId ? updatedTemp : store
-              )
-            );
-          }
-          return true;
-        },
+        valueSetter: valueSetter,
+        flex: 1,
+        minWidth: 100,
       },
     ],
-    [dispatch, stores, tempData, setTempData]
+    [dispatch, stores, tempData, handleDelete, valueSetter]
+  );
+
+  const defaultColDef = useMemo(
+    () => ({
+      editable: false,
+      sortable: true,
+      resizable: true,
+    }),
+    []
+  );
+
+  const getRowId = useCallback(
+    (params: GetRowIdParams<PermanentStore | TempStore>) => {
+      if (!params.data) return '';
+      return 'id' in params.data ? params.data.id : params.data.tempId;
+    },
+    []
   );
 
   useEffect(() => {
@@ -282,25 +229,9 @@ const StoresPage = () => {
     }
   }, [dispatch, stores.length]);
 
-  const defaultColDef = useMemo(
-    () => ({
-      editable: false,
-      sortable: true,
-    }),
-    []
-  );
-
-  const getRowId = useCallback(
-    (params: GetRowIdParams<PermanentStore | TempStore>) => {
-      if (!params.data) return '';
-      return 'id' in params.data ? params.data.id : params.data.tempId;
-    },
-    []
-  );
-
   return (
-    <div className="sku-container">
-      <div className="sku-table ag-theme-alpine rounded-none">
+    <div className="sku-container flex flex-col h-full w-full overflow-hidden">
+      <div className="sku-table flex-1 w-full ag-theme-alpine rounded-none">
         <AgGridReact
           ref={gridRef}
           rowData={[...stores, ...tempData]}
@@ -310,13 +241,17 @@ const StoresPage = () => {
           enableCellTextSelection={true}
           ensureDomOrder={true}
           stopEditingWhenCellsLoseFocus={true}
+          suppressRowHoverHighlight={false}
+          domLayout="autoHeight"
         />
       </div>
-      <button
-        className="sku-button bg-green-500 cursor-pointer text-gray-800 px-4 py-2 mt-4 rounded shadow-md flex items-center gap-2"
-        onClick={handleAddStore}>
-        NEW STORE
-      </button>
+      <div className="mt-4">
+        <button
+          className="sku-button bg-green-500 cursor-pointer text-gray-800 px-4 py-2 rounded shadow-md flex items-center gap-2"
+          onClick={handleAddStore}>
+          NEW STORE
+        </button>
+      </div>
     </div>
   );
 };
