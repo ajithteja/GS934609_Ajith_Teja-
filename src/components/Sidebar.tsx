@@ -13,19 +13,23 @@ import { MdOutlineStore } from 'react-icons/md';
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isOpen, setIsOpen] = useState<boolean>(window.innerWidth >= 768); //  Explicitly typed
+  const [isOpen, setIsOpen] = useState<boolean>(window.innerWidth >= 768);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
-  // Handle Window Resize
   useEffect(() => {
     const handleResize = () => {
       setIsOpen(window.innerWidth >= 768);
+      setWindowWidth(window.innerWidth);
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  //  Handle Navigation & Auto-Close on Small Screens
+  const getIconSize = () => {
+    return windowWidth < 768 ? 16 : 22;
+  };
+
   const handleNavigation = (path: string): void => {
     navigate(path);
     if (window.innerWidth < 768) {
@@ -34,29 +38,24 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div>
-      {/* 🔹 Toggle Button (for Small Screens) */}
-      {/* <button
-        className="cursor-pointer md:hidden bg-gray-600 toggle-btn"
-        onClick={() => setIsOpen(!isOpen)}>
-        {isOpen ? <FaTimes size={12} /> : <FaBars size={12} />}
-      </button> */}
-
+    <>
       <div
-        className={` bg-gray-100 p-  top-15 left-0 h-[calc(100vh-80px)] transition-all duration-200 shadow-lg z-40 ${
-          isOpen ? 'fixed  w-64 mt-5 md:mt-0' : 'w-16'
-        } md:relative md:w-64 md:top-0`}>
-        <ul className="mt- md:mt-0 md:relative">
+        className={` md:static h-screen bg-gray-100 shadow-lg transition-transform duration-300 ease-in-out z-40 ${
+          isOpen
+            ? 'translate-x-0 w-34 md:w-64'
+            : 'w-16 md:translate-x-0 -translate-x-0'
+        }`}>
+        <ul className="mt-4 md:mt-0">
           <li
-            className={`md:hidden side-bar-text flex items-center pl-6 space-x-3 cursor-pointer h-16 rounded-none transition-colors duration-50
+            className={`side-bar-bg-on-h text-gray-700 md:hidden side-bar-text flex items-center pl-6 space-x-3 cursor-pointer h-10 rounded-none transition-colors duration-50
     
       `}
             onClick={() => setIsOpen(!isOpen)}>
-            {isOpen ? <FaTimes size={12} /> : <FaBars size={12} />}
+            {isOpen ? <FaTimes size={14} /> : <FaBars size={10} />}
           </li>
 
           <SidebarItem
-            icon={<MdOutlineStore size={22} />}
+            icon={<MdOutlineStore size={getIconSize()} />}
             label="Store"
             isOpen={isOpen}
             currentPath={location.pathname}
@@ -64,7 +63,7 @@ const Sidebar: React.FC = () => {
             onClick={() => handleNavigation('/')}
           />
           <SidebarItem
-            icon={<FaBox size={22} />}
+            icon={<FaBox size={getIconSize()} />}
             label="SKU"
             isOpen={isOpen}
             currentPath={location.pathname}
@@ -72,7 +71,7 @@ const Sidebar: React.FC = () => {
             onClick={() => handleNavigation('/skus')}
           />
           <SidebarItem
-            icon={<FaClipboardList size={22} />}
+            icon={<FaClipboardList size={getIconSize()} />}
             label="Planning"
             isOpen={isOpen}
             currentPath={location.pathname}
@@ -80,7 +79,7 @@ const Sidebar: React.FC = () => {
             onClick={() => handleNavigation('/planning')}
           />
           <SidebarItem
-            icon={<FaChartBar size={22} />}
+            icon={<FaChartBar size={getIconSize()} />}
             label="Charts"
             isOpen={isOpen}
             currentPath={location.pathname}
@@ -90,17 +89,16 @@ const Sidebar: React.FC = () => {
         </ul>
       </div>
 
-      {/* 🔹 Overlay (for Small Screens) */}
       {isOpen && window.innerWidth < 768 && (
         <div
           className="fixed inset-0 bg-black opacity-40 z-30"
-          onClick={() => setIsOpen(false)}></div>
+          onClick={() => setIsOpen(false)}
+        />
       )}
-    </div>
+    </>
   );
 };
 
-//  Define Props for SidebarItem
 interface SidebarItemProps {
   icon: JSX.Element;
   label: string;
@@ -119,15 +117,21 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   onClick,
 }) => (
   <li
-    className={`side-bar-text flex items-center pl-6 space-x-3 cursor-pointer h-16 rounded-none transition-colors duration-50
+    className={`side-bar-text flex items-center pl-6 space-x-3 cursor-pointer h-14 rounded-none transition-colors duration-50
+      md:h-16
+
       ${
         currentPath === path
           ? 'side-bar-bg text-gray-700'
           : 'text-gray-700 side-bar-bg-on-h'
       }`}
     onClick={onClick}>
-    {icon}
-    {isOpen && <span>{label}</span>}
+    <div className="flex items-center">
+      {icon}
+      {isOpen && (
+        <span className="ml-3 text-xs sm:text-sm md:text-base">{label}</span>
+      )}
+    </div>
   </li>
 );
 

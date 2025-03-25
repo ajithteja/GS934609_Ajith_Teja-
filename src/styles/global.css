@@ -1,0 +1,32 @@
+/* Existing styles */
+
+/* Responsive ag-grid styles */
+@media screen and (max-width: 640px) {
+  .ag-theme-quartz {
+    --ag-font-size: 12px !important;
+    --ag-header-font-size: 12px !important;
+  }
+}
+
+@media screen and (min-width: 641px) and (max-width: 768px) {
+  .ag-theme-quartz {
+    --ag-font-size: 13px !important;
+    --ag-header-font-size: 13px !important;
+  }
+}
+
+@media screen and (min-width: 769px) {
+  .ag-theme-quartz {
+    --ag-font-size: 14px !important;
+    --ag-header-font-size: 14px !important;
+  }
+}
+
+/* Custom cell class for responsive text */
+.ag-cell-responsive {
+  font-size: var(--ag-font-size) !important;
+}
+
+.ag-header-responsive {
+  font-size: var(--ag-header-font-size) !important;
+}

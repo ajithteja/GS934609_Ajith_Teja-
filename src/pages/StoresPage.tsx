@@ -22,6 +22,7 @@ import {
   TempStore,
 } from '../redux/features/storesSlice';
 import { RootState } from '../redux/store';
+import '../styles/global.css';
 
 ModuleRegistry.registerModules([ClientSideRowModelModule, AllCommunityModule]);
 
@@ -30,6 +31,22 @@ const StoresPage = () => {
   const { stores } = useAppSelector((state: RootState) => state.stores);
   const [tempData, setTempData] = useState<TempStore[]>([]);
   const gridRef = useRef<AgGridReact<PermanentStore | TempStore>>(null);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const getResponsiveSize = useCallback(() => {
+    if (windowWidth < 640) return 'sm';
+    if (windowWidth < 768) return 'md';
+    return 'lg';
+  }, [windowWidth]);
 
   const handleAddStore = useCallback(() => {
     const newStore: TempStore = {
@@ -88,6 +105,21 @@ const StoresPage = () => {
     [dispatch]
   );
 
+  const getResponsiveColumnSizes = useCallback(() => {
+    const size = getResponsiveSize();
+    return {
+      deleteColumn: size === 'sm' ? 40 : size === 'md' ? 50 : 60,
+      snoColumn: size === 'sm' ? 60 : size === 'md' ? 70 : 80,
+      minWidth: {
+        name: size === 'sm' ? 120 : size === 'md' ? 130 : 150,
+        city: size === 'sm' ? 100 : size === 'md' ? 110 : 120,
+        state: size === 'sm' ? 80 : size === 'md' ? 90 : 100,
+      },
+    };
+  }, [getResponsiveSize]);
+
+  const columnSizes = getResponsiveColumnSizes();
+
   const columnDefs = useMemo<ColDef<PermanentStore | TempStore>[]>(
     () => [
       {
@@ -95,7 +127,7 @@ const StoresPage = () => {
         cellRenderer: (params: { data?: PermanentStore | TempStore }) =>
           params.data ? (
             <button
-              className="px-4 py-2 rounded bg-transparent text-gray-700 p-0 m-0 flex items-center justify-center cursor-pointer"
+              className="px-2 sm:px-4 rounded bg-transparent text-gray-700 p-0 m-0 flex items-center justify-center cursor-pointer"
               onClick={() => {
                 if (params.data) {
                   handleDelete(
@@ -104,14 +136,15 @@ const StoresPage = () => {
                   );
                 }
               }}>
-              <RiDeleteBin6Line size={18} />
+              <RiDeleteBin6Line size={getResponsiveSize() === 'sm' ? 14 : 18} />
             </button>
           ) : null,
-        width: 60,
-        maxWidth: 60,
-        minWidth: 60,
+        width: columnSizes.deleteColumn,
+        maxWidth: columnSizes.deleteColumn,
+        minWidth: columnSizes.deleteColumn,
         cellStyle: { padding: '4px', textAlign: 'center' },
-        headerClass: 'custom-header',
+        headerClass: 'ag-header-responsive custom-header',
+        cellClass: 'ag-cell-responsive',
         suppressSizeToFit: true,
       },
       {
@@ -133,42 +166,53 @@ const StoresPage = () => {
           });
           return index + 1;
         },
-        width: 80,
-        minWidth: 80,
-        maxWidth: 80,
-        cellClass: 'border-right',
-        headerClass: 'border-right custom-header',
+        width: columnSizes.snoColumn,
+        minWidth: columnSizes.snoColumn,
+        // maxWidth: columnSizes.snoColumn,
+        cellClass: 'ag-cell-responsive border-right',
+        headerClass: 'ag-header-responsive border-right custom-header',
         suppressSizeToFit: true,
       },
       {
         headerName: 'Store Name',
         field: 'name',
-        headerClass: 'custom-header',
+        headerClass: 'ag-header-responsive custom-header',
+        cellClass: 'ag-cell-responsive',
         editable: true,
         valueSetter: valueSetter,
         flex: 2,
-        minWidth: 150,
+        minWidth: columnSizes.minWidth.name,
       },
       {
         headerName: 'City',
         field: 'city',
-        headerClass: 'custom-header',
+        headerClass: 'ag-header-responsive custom-header',
+        cellClass: 'ag-cell-responsive',
         editable: true,
         valueSetter: valueSetter,
         flex: 1,
-        minWidth: 120,
+        minWidth: columnSizes.minWidth.city,
       },
       {
         headerName: 'State',
         field: 'state',
-        headerClass: 'custom-header',
+        headerClass: 'ag-header-responsive custom-header',
+        cellClass: 'ag-cell-responsive',
         editable: true,
         valueSetter: valueSetter,
         flex: 1,
-        minWidth: 100,
+        minWidth: columnSizes.minWidth.state,
       },
     ],
-    [dispatch, stores, tempData, handleDelete, valueSetter]
+    [
+      dispatch,
+      stores,
+      tempData,
+      handleDelete,
+      valueSetter,
+      columnSizes,
+      getResponsiveSize,
+    ]
   );
 
   const defaultColDef = useMemo(
@@ -230,7 +274,7 @@ const StoresPage = () => {
   }, [dispatch, stores.length]);
 
   return (
-    <div className="sku-container flex flex-col h-full w-full overflow-hidden">
+    <div className="sku-container flex flex-col h-full w-full overflow-hidden p-2 sm:p-4">
       <div className="sku-table flex-1 w-full ag-theme-alpine rounded-none">
         <AgGridReact
           ref={gridRef}
@@ -243,11 +287,13 @@ const StoresPage = () => {
           stopEditingWhenCellsLoseFocus={true}
           suppressRowHoverHighlight={false}
           domLayout="autoHeight"
+          headerHeight={getResponsiveSize() === 'sm' ? 36 : 42}
+          rowHeight={getResponsiveSize() === 'sm' ? 32 : 38}
         />
       </div>
-      <div className="mt-4">
+      <div className="mt-2 sm:mt-4">
         <button
-          className="sku-button bg-green-500 cursor-pointer text-gray-800 px-4 py-2 rounded shadow-md flex items-center gap-2"
+          className="sku-button bg-green-500 cursor-pointer text-gray-800 px-3 sm:px-4 py-1.5 sm:py-2 rounded shadow-md flex items-center gap-2 text-sm sm:text-base"
           onClick={handleAddStore}>
           NEW STORE
         </button>

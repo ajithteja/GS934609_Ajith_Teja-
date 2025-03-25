@@ -1,9 +1,23 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+} from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
+import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { v4 as uuidv4 } from 'uuid';
 import { RiDeleteBin6Line } from 'react-icons/ri';
-import { ColDef } from 'ag-grid-community';
+import {
+  ColDef,
+  ModuleRegistry,
+  ClientSideRowModelModule,
+  AllCommunityModule,
+  ValueSetterParams,
+  GetRowIdParams,
+  ValueGetterParams,
+} from 'ag-grid-community';
 import { useAppDispatch, useAppSelector } from '../redux/hooks';
 import {
   SKUInterface,
@@ -15,12 +29,31 @@ import {
   deleteSKU,
 } from '../redux/features/skusSlice';
 import { RootState } from '../redux/store';
+import '../styles/global.css';
+
+ModuleRegistry.registerModules([ClientSideRowModelModule, AllCommunityModule]);
 
 const SKUPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { skus } = useAppSelector((state: RootState) => state.skus);
   const [tempData, setTempData] = useState<TempSKU[]>([]);
-  const gridRef = useRef<AgGridReact<SKUInterface>>(null);
+  const gridRef = useRef<AgGridReact<PermanentSKU | TempSKU>>(null);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const getResponsiveSize = useCallback(() => {
+    if (windowWidth < 640) return 'sm';
+    if (windowWidth < 768) return 'md';
+    return 'lg';
+  }, [windowWidth]);
 
   // Load initial data if empty
   useEffect(() => {
@@ -70,190 +103,209 @@ const SKUPage: React.FC = () => {
     localStorage.setItem('tempSkus', JSON.stringify(tempData));
   }, [tempData]);
 
-  const handleAddSKU = (): void => {
+  const handleAddSKU = useCallback(() => {
     const newSKU: TempSKU = {
       tempId: uuidv4(),
       sku: '',
-      price: 0.0,
-      cost: 0.0,
+      price: 0,
+      cost: 0,
     };
     setTempData((prev) => [...prev, newSKU]);
-  };
+  }, []);
 
-  const handleRemoveSKU = (id?: string, row?: SKUInterface): void => {
-    if (id) {
-      dispatch(deleteSKU(id));
-    } else if ('tempId' in row!) {
-      setTempData((prev) => prev.filter((sku) => sku.tempId !== row.tempId));
-    }
-  };
+  const handleDelete = useCallback(
+    (id: string | undefined, data: PermanentSKU | TempSKU) => {
+      if ('id' in data) {
+        dispatch(deleteSKU(data.id));
+      } else {
+        setTempData((prev) => prev.filter((sku) => sku.tempId !== data.tempId));
+      }
+    },
+    [dispatch]
+  );
 
-  const columnDefs = useMemo<ColDef<SKUInterface>[]>(
+  const valueSetter = useCallback(
+    (params: ValueSetterParams) => {
+      const field = params.column.getColId();
+      const newValue = params.newValue;
+      const data = { ...params.data };
+      data[field] = newValue;
+
+      if ('id' in data) {
+        dispatch(updateSKU(data as PermanentSKU));
+      } else if (field === 'sku' && data.sku?.trim() !== '') {
+        const newSKU: PermanentSKU = {
+          id: uuidv4(),
+          sku: data.sku,
+          price: data.price || 0,
+          cost: data.cost || 0,
+        };
+        dispatch(addSKU(newSKU));
+        setTempData((prev) =>
+          prev.filter((sku) => sku.tempId !== (data as TempSKU).tempId)
+        );
+      } else {
+        setTempData((prev) =>
+          prev.map((sku) =>
+            sku.tempId === (data as TempSKU).tempId ? (data as TempSKU) : sku
+          )
+        );
+      }
+      return true;
+    },
+    [dispatch]
+  );
+
+  const getResponsiveColumnSizes = useCallback(() => {
+    const size = getResponsiveSize();
+    return {
+      deleteColumn: size === 'sm' ? 40 : size === 'md' ? 50 : 60,
+      snoColumn: size === 'sm' ? 60 : size === 'md' ? 70 : 80,
+      minWidth: {
+        sku: size === 'sm' ? 120 : size === 'md' ? 130 : 150,
+        price: size === 'sm' ? 100 : size === 'md' ? 110 : 120,
+        cost: size === 'sm' ? 100 : size === 'md' ? 110 : 120,
+      },
+    };
+  }, [getResponsiveSize]);
+
+  const columnSizes = getResponsiveColumnSizes();
+
+  const columnDefs = useMemo<ColDef<PermanentSKU | TempSKU>[]>(
     () => [
       {
         headerName: '',
-        cellRenderer: (params: { data?: SKUInterface }) =>
+        cellRenderer: (params: { data?: PermanentSKU | TempSKU }) =>
           params.data ? (
             <button
-              className="px-4 py-2 rounded bg-transparent text-gray-700 p-0 m-0 flex items-center justify-center cursor-pointer"
+              className="px-2 sm:px-4 rounded bg-transparent text-gray-700 p-0 m-0 flex items-center justify-center cursor-pointer"
               onClick={() => {
                 if (params.data) {
-                  handleRemoveSKU(
+                  handleDelete(
                     'id' in params.data ? params.data.id : undefined,
                     params.data
                   );
                 }
               }}>
-              <RiDeleteBin6Line size={18} />
+              <RiDeleteBin6Line size={getResponsiveSize() === 'sm' ? 14 : 18} />
             </button>
           ) : null,
-        width: 30,
-        maxWidth: 80,
-        minWidth: 60,
+        width: columnSizes.deleteColumn,
+        maxWidth: columnSizes.deleteColumn,
+        minWidth: columnSizes.deleteColumn,
         cellStyle: { padding: '4px', textAlign: 'center' },
-        headerClass: 'custom-header',
+        headerClass: 'ag-header-responsive custom-header',
+        cellClass: 'ag-cell-responsive',
+        suppressSizeToFit: true,
+      },
+      {
+        headerName: 'S.No',
+        valueGetter: (params: ValueGetterParams<PermanentSKU | TempSKU>) => {
+          if (!params.data) return '';
+          const allSKUs = [...skus, ...tempData];
+          const index = allSKUs.findIndex((sku) => {
+            if (!params.data) return false;
+            if ('id' in sku && 'id' in params.data) {
+              return sku.id === params.data.id;
+            }
+            if ('tempId' in sku && 'tempId' in params.data) {
+              return sku.tempId === params.data.tempId;
+            }
+            return false;
+          });
+          return index + 1;
+        },
+        width: columnSizes.snoColumn,
+        minWidth: columnSizes.snoColumn,
+        maxWidth: columnSizes.snoColumn,
+        cellClass: 'ag-cell-responsive border-right',
+        headerClass: 'ag-header-responsive border-right custom-header',
+        suppressSizeToFit: true,
       },
       {
         headerName: 'SKU',
         field: 'sku',
-        width: 90,
-        cellClass: 'border-right',
-        headerClass: 'border-right custom-header',
+        headerClass: 'ag-header-responsive custom-header',
+        cellClass: 'ag-cell-responsive',
         editable: true,
-        valueSetter: (params) => {
-          const newValue = params.newValue;
-          const data = { ...params.data };
-
-          if ('id' in data) {
-            const updatedSKU: PermanentSKU = {
-              ...data,
-              sku: newValue,
-            };
-            dispatch(updateSKU(updatedSKU));
-          } else if ('tempId' in data) {
-            const updatedTemp: TempSKU = {
-              ...data,
-              sku: newValue,
-            };
-            if (updatedTemp.sku.trim() !== '') {
-              const newSKU: PermanentSKU = {
-                id: uuidv4(),
-                sku: updatedTemp.sku,
-                price: updatedTemp.price,
-                cost: updatedTemp.cost,
-              };
-              dispatch(addSKU(newSKU));
-              setTempData((prev) =>
-                prev.filter((sku) => sku.tempId !== updatedTemp.tempId)
-              );
-            } else {
-              setTempData((prev) =>
-                prev.map((sku) =>
-                  sku.tempId === updatedTemp.tempId ? updatedTemp : sku
-                )
-              );
-            }
-          }
-          return true;
-        },
+        valueSetter: valueSetter,
+        flex: 2,
+        minWidth: columnSizes.minWidth.sku,
       },
       {
         headerName: 'Price',
         field: 'price',
-        headerClass: 'custom-header',
+        headerClass: 'ag-header-responsive custom-header',
+        cellClass: 'ag-cell-responsive',
         editable: true,
-        valueFormatter: (params) => `$ ${Number(params.value).toFixed(2)}`,
-        valueSetter: (params) => {
-          const newValue = Number(params.newValue);
-          const data = { ...params.data };
-
-          if ('id' in data) {
-            const updatedSKU: PermanentSKU = {
-              ...data,
-              price: newValue,
-            };
-            dispatch(updateSKU(updatedSKU));
-          } else if ('tempId' in data) {
-            const updatedTemp: TempSKU = {
-              ...data,
-              price: newValue,
-            };
-            setTempData((prev) =>
-              prev.map((sku) =>
-                sku.tempId === updatedTemp.tempId ? updatedTemp : sku
-              )
-            );
-          }
-          return true;
-        },
+        valueSetter: valueSetter,
+        flex: 1,
+        minWidth: columnSizes.minWidth.price,
       },
       {
         headerName: 'Cost',
         field: 'cost',
-        headerClass: 'custom-header',
+        headerClass: 'ag-header-responsive custom-header',
+        cellClass: 'ag-cell-responsive',
         editable: true,
-        valueFormatter: (params) => `$ ${Number(params.value).toFixed(2)}`,
-        valueSetter: (params) => {
-          const newValue = Number(params.newValue);
-          const data = { ...params.data };
-
-          if ('id' in data) {
-            const updatedSKU: PermanentSKU = {
-              ...data,
-              cost: newValue,
-            };
-            dispatch(updateSKU(updatedSKU));
-          } else if ('tempId' in data) {
-            const updatedTemp: TempSKU = {
-              ...data,
-              cost: newValue,
-            };
-            setTempData((prev) =>
-              prev.map((sku) =>
-                sku.tempId === updatedTemp.tempId ? updatedTemp : sku
-              )
-            );
-          }
-          return true;
-        },
+        valueSetter: valueSetter,
+        flex: 1,
+        minWidth: columnSizes.minWidth.cost,
       },
     ],
-    [dispatch, setTempData]
+    [
+      dispatch,
+      skus,
+      tempData,
+      handleDelete,
+      valueSetter,
+      columnSizes,
+      getResponsiveSize,
+    ]
   );
 
   const defaultColDef = useMemo(
     () => ({
       editable: false,
       sortable: true,
+      resizable: true,
     }),
     []
   );
 
-  const getRowId = (params: { data: SKUInterface }) => {
-    return 'id' in params.data ? params.data.id : params.data.tempId;
-  };
+  const getRowId = useCallback(
+    (params: GetRowIdParams<PermanentSKU | TempSKU>) => {
+      if (!params.data) return '';
+      return 'id' in params.data ? params.data.id : params.data.tempId;
+    },
+    []
+  );
 
   return (
-    <div className="sku-container">
-      <div className="sku-table ag-theme-alpine rounded-none">
+    <div className="sku-container flex flex-col h-full w-full overflow-hidden p-2 sm:p-4">
+      <div className="sku-table flex-1 w-full ag-theme-alpine rounded-none">
         <AgGridReact
           ref={gridRef}
           rowData={[...skus, ...tempData]}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
-          domLayout="autoHeight"
-          animateRows={true}
           getRowId={getRowId}
           enableCellTextSelection={true}
           ensureDomOrder={true}
           stopEditingWhenCellsLoseFocus={true}
+          suppressRowHoverHighlight={false}
+          domLayout="autoHeight"
+          headerHeight={getResponsiveSize() === 'sm' ? 36 : 42}
+          rowHeight={getResponsiveSize() === 'sm' ? 32 : 38}
         />
       </div>
-      <button
-        className="sku-button bg-green-500 cursor-pointer text-gray-800 px-4 py-2 mt-4 rounded shadow-md flex items-center gap-2"
-        onClick={handleAddSKU}>
-        NEW SKU
-      </button>
+      <div className="mt-2 sm:mt-4">
+        <button
+          className="sku-button bg-green-500 cursor-pointer text-gray-800 px-3 sm:px-4 py-1.5 sm:py-2 rounded shadow-md flex items-center gap-2 text-sm sm:text-base"
+          onClick={handleAddSKU}>
+          NEW SKU
+        </button>
+      </div>
     </div>
   );
 };
