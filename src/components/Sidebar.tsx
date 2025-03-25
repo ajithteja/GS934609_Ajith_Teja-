@@ -1,7 +1,6 @@
 import { useState, useEffect, JSX } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  FaStore,
   FaBox,
   FaChartBar,
   FaClipboardList,

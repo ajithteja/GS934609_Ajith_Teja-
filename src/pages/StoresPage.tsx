@@ -60,6 +60,7 @@ const StoresPage = () => {
 
   const handleDelete = useCallback(
     (id: string | undefined, data: PermanentStore | TempStore) => {
+      console.log('id', id);
       if ('id' in data) {
         dispatch(deleteStore(data.id));
       } else {

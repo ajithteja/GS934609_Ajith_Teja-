@@ -20,7 +20,6 @@ import {
 } from 'ag-grid-community';
 import { useAppDispatch, useAppSelector } from '../redux/hooks';
 import {
-  SKUInterface,
   TempSKU,
   PermanentSKU,
   setSKUs,
@@ -115,6 +114,7 @@ const SKUPage: React.FC = () => {
 
   const handleDelete = useCallback(
     (id: string | undefined, data: PermanentSKU | TempSKU) => {
+      console.log('id', id);
       if ('id' in data) {
         dispatch(deleteSKU(data.id));
       } else {

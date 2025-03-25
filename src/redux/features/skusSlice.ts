@@ -17,9 +17,6 @@ export interface TempSKU extends BaseSKUInterface {
   tempId: string;
 }
 
-// Union type for all SKU types
-export type SKUInterface = PermanentSKU | TempSKU;
-
 // State interface
 interface SKUsState {
   skus: PermanentSKU[];

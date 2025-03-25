@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { CalendarWeek } from './calendarSlice';
+// import { CalendarWeek } from './calendarSlice';
 
 // Interfaces for planning data
 export interface WeekData {
