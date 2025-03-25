@@ -2,238 +2,212 @@ import {
   ColDef,
   ColGroupDef,
   CellValueChangedEvent,
-  GridReadyEvent,
+  CellClassParams,
 } from 'ag-grid-community';
 import { AgGridReact } from 'ag-grid-react';
-import { useState, useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { useAppDispatch, useAppSelector } from '../redux/hooks';
+import { RootState } from '../redux/store';
+import { updatePlanningItem } from '../redux/features/planningSlice';
+import { PermanentSKU } from '../redux/features/skusSlice';
+import { PermanentStore } from '../redux/features/storesSlice';
+import { CalendarWeek } from '../redux/features/calendarSlice';
 
-const calendarData = [
-  { week: 'W01', month: 'Feb' },
-  { week: 'W02', month: 'Feb' },
-  { week: 'W03', month: 'Feb' },
-  { week: 'W04', month: 'Feb' },
-  { week: 'W05', month: 'Mar' },
-  { week: 'W06', month: 'Mar' },
-  { week: 'W07', month: 'Mar' },
-  { week: 'W08', month: 'Mar' },
-  { week: 'W09', month: 'Mar' },
-  { week: 'W10', month: 'Apr' },
-];
-
-const initialRowData = [
-  {
-    store: 'Chicago Charm Boutique',
-    sku: 'Floral Chiffon Wrap Dress',
-    price: 150.0,
-    cost: 50.0,
-    weeksData: [
-      { week: 'Week 01', salesUnits: 200 },
-      { week: 'Week 02', salesUnits: 0 },
-    ],
-  },
-  {
-    store: 'Miami Breeze Apparel',
-    sku: 'Lace-Up Combat Boots',
-    price: 80.0,
-    cost: 30.0,
-    weeksData: [
-      { week: 'Week 01', salesUnits: 199 },
-      { week: 'Week 02', salesUnits: 14 },
-    ],
-  },
-];
-
-const formatInitialRowData = () => {
-  return initialRowData.map((row) => {
-    let formattedRow: Record<string, any> = { store: row.store, sku: row.sku };
-
-    row.weeksData.forEach((week) => {
-      const salesUnits = week.salesUnits || 0;
-      const salesDollars = salesUnits * row.price;
-      const gmDollars = salesDollars - salesUnits * row.cost;
-      const gmPercent =
-        salesDollars > 0
-          ? Number(((gmDollars / salesDollars) * 100).toFixed(2))
-          : 0;
-
-      formattedRow[`${week.week}_salesUnits`] = salesUnits;
-      formattedRow[`${week.week}_salesDollars`] = salesDollars;
-      formattedRow[`${week.week}_gmDollars`] = gmDollars;
-      formattedRow[`${week.week}_gmPercent`] = gmPercent;
-    });
-
-    return formattedRow;
-  });
-};
+interface PlanningRowData {
+  id: string;
+  storeId: string;
+  storeName: string;
+  skuId: string;
+  skuName: string;
+  price: number;
+  cost: number;
+  [key: string]: any; // For dynamic week columns
+}
 
 const Planning = () => {
+  const dispatch = useAppDispatch();
+  const { planningData } = useAppSelector((state: RootState) => state.planning);
+  const { weeks } = useAppSelector((state: RootState) => state.calendar);
+  const { skus } = useAppSelector((state: RootState) => state.skus);
+  const { stores } = useAppSelector((state: RootState) => state.stores);
   const gridRef = useRef<AgGridReact>(null);
-  const gridApiRef = useRef<any>(null);
-  const priceAndCostData = useRef(
-    initialRowData.map((item) => ({
-      sku: item.sku,
-      price: item.price,
-      cost: item.cost,
-    }))
-  );
 
-  const [rowData, setRowData] = useState(formatInitialRowData());
+  // Create row data by cross joining stores and SKUs
+  const rowData = useMemo(() => {
+    const rows: PlanningRowData[] = [];
+    stores.forEach((store: PermanentStore) => {
+      skus.forEach((sku: PermanentSKU) => {
+        const planningItem = planningData.find(
+          (item: { storeId: string; skuId: string }) =>
+            item.storeId === store.id && item.skuId === sku.id
+        );
 
-  const onGridReady = (params: GridReadyEvent) => {
-    gridApiRef.current = params.api;
-  };
+        const row: PlanningRowData = {
+          id: `${store.id}-${sku.id}`,
+          storeId: store.id,
+          storeName: store.name,
+          skuId: sku.id,
+          skuName: sku.sku,
+          price: sku.price,
+          cost: sku.cost,
+        };
+
+        // Add week data
+        weeks.forEach((week: CalendarWeek) => {
+          const weekData = planningItem?.weeksData[week.week] || {
+            salesUnits: 0,
+            salesDollars: 0,
+            gmDollars: 0,
+            gmPercent: 0,
+          };
+
+          row[`${week.week}_salesUnits`] = weekData.salesUnits;
+          row[`${week.week}_salesDollars`] = weekData.salesDollars;
+          row[`${week.week}_gmDollars`] = weekData.gmDollars;
+          row[`${week.week}_gmPercent`] = weekData.gmPercent;
+        });
+
+        rows.push(row);
+      });
+    });
+    return rows;
+  }, [stores, skus, planningData, weeks]);
 
   const onCellValueChanged = (params: CellValueChangedEvent) => {
-    if (!params.column || isNaN(Number(params.newValue))) return;
+    if (!params.data || !params.column || isNaN(Number(params.newValue)))
+      return;
 
     const field = params.column.getColId();
     if (field.includes('_salesUnits')) {
-      const weekKey = field.split('_')[0]; // Extract week key (e.g., "Week 01")
-      const sku = params.data.sku;
-      const newSalesUnits = Number(params.newValue);
+      const weekId = field.split('_')[0];
+      const { storeId, skuId, price, cost } = params.data;
+      const salesUnits = Number(params.newValue);
 
-      const itemData = priceAndCostData.current.find(
-        (item) => item.sku === sku
+      dispatch(
+        updatePlanningItem({
+          storeId,
+          skuId,
+          weekId,
+          salesUnits,
+          price,
+          cost,
+        })
       );
-      if (!itemData) return;
-
-      const { price, cost } = itemData;
-      const newSalesDollars = newSalesUnits * price;
-      const newGmDollars = newSalesDollars - newSalesUnits * cost;
-
-      const newGmPercent =
-        newSalesDollars > 0
-          ? Number(((newGmDollars / newSalesDollars) * 100).toFixed(2))
-          : 0;
-      console.log(
-        'newSalesDollars',
-        newSalesDollars,
-        'newGmPercent',
-        newGmPercent,
-        'newSalesDollars',
-        newSalesDollars,
-        'newGmDollars',
-        newGmDollars
-      );
-
-      // console.log('SKU:', sku);
-      // console.log('New Sales Units:', newSalesUnits);
-      // console.log('Price per Unit:', price);
-      // console.log('Cost per Unit:', cost);
-      // console.log('New Sales $:', newSalesDollars);
-      // console.log('New GM $:', newGmDollars);
-      // console.log('New GM %:', newGmPercent);
-
-      setRowData((prevRowData) => {
-        const updatedData = prevRowData.map((row) =>
-          row.sku === sku
-            ? {
-                ...row,
-                [`${weekKey}_salesUnits`]: newSalesUnits,
-                [`${weekKey}_salesDollars`]: newSalesDollars,
-                [`${weekKey}_gmDollars`]: newGmDollars,
-                [`${weekKey}_gmPercent`]: newGmPercent,
-              }
-            : row
-        );
-
-        return [...updatedData]; //  Return new array to trigger UI update
-      });
-
-      if (gridApiRef.current) {
-        gridApiRef.current.applyTransaction({ update: [{ ...params.data }] });
-        gridApiRef.current.refreshCells({
-          force: true,
-          rowNodes: [params.node],
-          columns: [
-            `${weekKey}_salesUnits`,
-            `${weekKey}_salesDollars`,
-            `${weekKey}_gmDollars`,
-            `${weekKey}_gmPercent`,
-          ],
-        });
-      }
     }
   };
 
-  const gmPercentCellStyle = (params: any) => {
-    if (params.value >= 40)
+  const gmPercentCellStyle = (params: CellClassParams) => {
+    const value = Number(params.value);
+    if (value >= 40)
       return { backgroundColor: 'hsl(122.55deg 40.87% 45.1%)', color: 'white' };
-    if (params.value >= 10)
+    if (value >= 10)
       return { backgroundColor: 'hsl(48deg 95.83% 52.94%)', color: 'black' };
-    if (params.value >= 5)
+    if (value > 5)
       return { backgroundColor: 'hsl(27.02deg 95.98% 60.98%)', color: 'black' };
     return { backgroundColor: 'hsl(0deg 95.65% 81.96%)', color: 'white' };
   };
-  const columnDefs: (ColDef | ColGroupDef)[] = [
-    {
-      headerName: 'Store',
-      field: 'store',
-      headerClass: 'custom-header',
 
-      pinned: 'left',
-      width: 200,
-      editable: false,
-    },
-    {
-      headerName: 'SKU',
-      field: 'sku',
-      pinned: 'left',
-      headerClass: 'custom-header',
-      width: 250,
-      editable: false,
-    },
-    ...calendarData.map(
-      (week): ColGroupDef => ({
-        headerName: week.month,
+  const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(
+    () => [
+      {
+        headerName: 'Store',
+        field: 'storeName',
         headerClass: 'custom-header',
-        children: [
-          {
-            headerName: week.week,
-            headerClass: 'custom-header',
-            children: [
-              {
-                headerName: 'Sales Units',
-                field: `${week.week}_salesUnits`,
-                width: 120,
-                headerClass: 'custom-header',
-                editable: true,
-              },
-              {
-                headerName: 'Sales Dollars',
-                field: `${week.week}_salesDollars`,
-                headerClass: 'custom-header',
-                valueFormatter: (p) =>
-                  p.value != null ? `$${p.value.toFixed(2)}` : '$0.00',
-                width: 120,
-                editable: false,
-              },
-              {
-                headerName: 'GM Dollars',
-                field: `${week.week}_gmDollars`,
-                headerClass: 'custom-header',
-                valueFormatter: (p) =>
-                  p.value != null ? `$${p.value.toFixed(2)}` : '$0.00',
-                width: 120,
-                editable: false,
-              },
-              {
-                headerName: 'GM Percent',
-                field: `${week.week}_gmPercent`,
-                headerClass: 'custom-header',
-                valueFormatter: (p) =>
-                  p.value != null ? `${p.value.toFixed(2)}%` : '0.00%',
-                width: 100,
-                editable: false,
-                cellStyle: gmPercentCellStyle,
-              },
-            ],
-          },
-        ],
-      })
-    ),
-  ];
+        pinned: 'left',
+        width: 200,
+        editable: false,
+      },
+      {
+        headerName: 'SKU',
+        field: 'skuName',
+        pinned: 'left',
+        headerClass: 'custom-header',
+        width: 250,
+        editable: false,
+      },
+      ...weeks.reduce<ColGroupDef[]>(
+        (acc: ColGroupDef[], week: CalendarWeek) => {
+          const monthGroup = acc.find(
+            (group: ColGroupDef) => group.headerName === week.monthLabel
+          );
+          const weekColumns: ColDef[] = [
+            {
+              headerName: 'Sales Units',
+              field: `${week.week}_salesUnits`,
+              width: 120,
+              headerClass: 'custom-header',
+              editable: true,
+              type: 'numericColumn',
+            },
+            {
+              headerName: 'Sales Dollars',
+              field: `${week.week}_salesDollars`,
+              headerClass: 'custom-header',
+              valueFormatter: (p) =>
+                p.value != null ? `$${p.value.toFixed(2)}` : '$0.00',
+              width: 120,
+              editable: false,
+              type: 'numericColumn',
+            },
+            {
+              headerName: 'GM Dollars',
+              field: `${week.week}_gmDollars`,
+              headerClass: 'custom-header',
+              valueFormatter: (p) =>
+                p.value != null ? `$${p.value.toFixed(2)}` : '$0.00',
+              width: 120,
+              editable: false,
+              type: 'numericColumn',
+            },
+            {
+              headerName: 'GM Percent',
+              field: `${week.week}_gmPercent`,
+              headerClass: 'custom-header',
+              valueFormatter: (p) =>
+                p.value != null ? `${p.value.toFixed(2)}%` : '0.00%',
+              width: 100,
+              editable: false,
+              cellStyle: gmPercentCellStyle,
+              type: 'numericColumn',
+            },
+          ];
+
+          if (monthGroup) {
+            monthGroup.children.push({
+              headerName: week.weekLabel,
+              headerClass: 'custom-header',
+              children: weekColumns,
+            });
+          } else {
+            acc.push({
+              headerName: week.monthLabel,
+              headerClass: 'custom-header',
+              children: [
+                {
+                  headerName: week.weekLabel,
+                  headerClass: 'custom-header',
+                  children: weekColumns,
+                },
+              ],
+            });
+          }
+
+          return acc;
+        },
+        []
+      ),
+    ],
+    [weeks]
+  );
+
+  const defaultColDef = useMemo(
+    () => ({
+      resizable: true,
+      sortable: true,
+    }),
+    []
+  );
 
   return (
     <div className="sku-container sku-table ag-theme-alpine rounded-none">
@@ -241,10 +215,9 @@ const Planning = () => {
         ref={gridRef}
         rowData={rowData}
         columnDefs={columnDefs}
-        defaultColDef={{ resizable: true, sortable: true }}
-        onGridReady={onGridReady}
+        defaultColDef={defaultColDef}
         onCellValueChanged={onCellValueChanged}
-        getRowId={(params) => params.data.sku}
+        getRowId={(params) => params.data.id}
         animateRows={true}
       />
     </div>

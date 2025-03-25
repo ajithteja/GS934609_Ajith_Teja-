@@ -202,3 +202,24 @@
   display: flex;
   align-items: center;
 }
+
+.chart-container {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.05) -150%,
+    #222 80%
+  );
+
+  /* background-color: #222; */
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.chart-title {
+  color: white;
+  font-family: 'Roboto', sans-serif;
+  font-size: 18px;
+
+  text-align: center;
+  margin-bottom: 10px;
+}
